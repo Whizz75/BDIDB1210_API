@@ -119,83 +119,155 @@ def financial_records():
 
 
 # **2. Retrieve and Update Products Data (Real-time Updates on Purchase)**
-@app.route('/purchase', methods=['POST'])
-def purchase_product():
-    data = request.get_json()
-    product_id = data.get('productid')
-    quantity_purchased = data.get('quantity')
+@app.route('/products', methods=['GET', 'POST'])
+def manage_products():
+    if request.method == 'GET':
+        try:
+            cur = conn.cursor()
+            cur.execute("SELECT * FROM product;")
+            rows = cur.fetchall()
+            cur.close()
 
-    try:
-        cur = conn.cursor()
-        cur.execute("SELECT quantity FROM product WHERE productid = %s;", (product_id,))
-        row = cur.fetchone()
+            products = []
+            for row in rows:
+                products.append({
+                    "productid": row[0],
+                    "productname": row[1],
+                    "price": row[2],
+                    "quantity": row[3]
+                })
+            return jsonify(products)
+        except Exception as e:
+            print("Error in /products (GET):", e)
+            return jsonify({"error": str(e)}), 500
 
-        if row is None:
-            return jsonify({"error": "Product not found"}), 404
+    elif request.method == 'POST':
+        # Add a new product
+        data = request.get_json()
+        product_name = data.get('productname')
+        price = data.get('price')
+        quantity = data.get('quantity')
 
-        current_quantity = row[0]
-
-        if current_quantity < quantity_purchased:
-            return jsonify({"error": "Insufficient quantity in stock"}), 400
-
-        # Update product quantity
-        cur.execute(
-            "UPDATE product SET quantity = quantity - %s WHERE productid = %s;",
-            (quantity_purchased, product_id)
-        )
-        conn.commit()
-        cur.close()
-        return jsonify({"message": "Purchase successful and quantity updated"}), 200
-    except Exception as e:
-        conn.rollback()
-        print("Error in /purchase:", e)
-        return jsonify({"error": str(e)}), 500
-
-
-# **3. Retrieve Inventory Data**
-@app.route('/inventory')
-def get_inventory():
-    try:
-        cur = conn.cursor()
-        cur.execute("SELECT * FROM inventory;")
-        rows = cur.fetchall()
-        cur.close()
-
-        result = []
-        for r in rows:
-            result.append({
-                "inventoryid": r[0],
-                "brand": r[1],
-                "quantity": r[2]
-            })
-
-        return jsonify(result)
-    except Exception as e:
-        print("Error in /inventory:", e)
-        return jsonify({"error": str(e)}), 500
+        try:
+            cur = conn.cursor()
+            cur.execute("INSERT INTO product (productname, price, quantity) VALUES (%s, %s, %s);",
+                        (product_name, price, quantity))
+            conn.commit()
+            cur.close()
+            return jsonify({"message": "Product added successfully"}), 201
+        except Exception as e:
+            conn.rollback()
+            print("Error in /products (POST):", e)
+            return jsonify({"error": str(e)}), 500
 
 
-# **4. Sales Data Retrieval & Insertion from Receipt Page**
-@app.route('/sales', methods=['POST'])
-def insert_sale():
-    data = request.get_json()
-    customer_id = data.get('customerid')
-    employee_id = data.get('employeeid')
-    product_id = data.get('productid')
-    sales_date = data.get('sales_date')
+# **3. Retrieve and Update Inventory Data**
+@app.route('/inventory', methods=['GET', 'POST'])
+def manage_inventory():
+    if request.method == 'GET':
+        try:
+            cur = conn.cursor()
+            cur.execute("SELECT * FROM inventory;")
+            rows = cur.fetchall()
+            cur.close()
 
-    try:
-        cur = conn.cursor()
-        cur.execute("""INSERT INTO sales (customerid, employeeid, productid, sales_date)
-                       VALUES (%s, %s, %s, %s);""", 
-                       (customer_id, employee_id, product_id, sales_date))
-        conn.commit()
-        cur.close()
-        return jsonify({"message": "Sale recorded successfully"}), 201
-    except Exception as e:
-        conn.rollback()
-        print("Error inserting sale:", e)
-        return jsonify({"error": str(e)}), 500
+            inventory_list = []
+            for row in rows:
+                inventory_list.append({
+                    "inventoryid": row[0],
+                    "brand": row[1],
+                    "quantity": row[2]
+                })
+            return jsonify(inventory_list)
+        except Exception as e:
+            print("Error in /inventory (GET):", e)
+            return jsonify({"error": str(e)}), 500
+
+    elif request.method == 'POST':
+        # Add a new inventory item
+        data = request.get_json()
+        brand = data.get('brand')
+        quantity = data.get('quantity')
+
+        try:
+            cur = conn.cursor()
+            cur.execute("INSERT INTO inventory (brand, quantity) VALUES (%s, %s);", (brand, quantity))
+            conn.commit()
+            cur.close()
+            return jsonify({"message": "Inventory item added successfully"}), 201
+        except Exception as e:
+            conn.rollback()
+            print("Error in /inventory (POST):", e)
+            return jsonify({"error": str(e)}), 500
+
+
+# **3. Sales Data Retrieval & Insertion from Receipt Page**
+@app.route('/sales', methods=['GET', 'POST'])
+def manage_sales():
+    if request.method == 'GET':
+        try:
+            cur = conn.cursor()
+            cur.execute("SELECT * FROM sales;")
+            rows = cur.fetchall()
+            cur.close()
+
+            sales_data = []
+            for row in rows:
+                sales_data.append({
+                    "saleid": row[0],
+                    "customerid": row[1],
+                    "employeeid": row[2],
+                    "productid": row[3],
+                    "sales_date": row[4]
+                })
+            return jsonify(sales_data)
+        except Exception as e:
+            print("Error in /sales (GET):", e)
+            return jsonify({"error": str(e)}), 500
+
+    elif request.method == 'POST':
+        # Insert a sale record and decrement the product quantity
+        data = request.get_json()
+        customer_id = data.get('customerid')
+        employee_id = data.get('employeeid')
+        product_id = data.get('productid')
+        sales_date = data.get('sales_date')
+        quantity_sold = data.get('quantity')  # The quantity sold in the sale
+
+        try:
+            cur = conn.cursor()
+
+            # Step 1: Check the current product quantity
+            cur.execute("SELECT quantity FROM product WHERE productid = %s;", (product_id,))
+            current_quantity = cur.fetchone()
+
+            if current_quantity is None:
+                cur.close()
+                return jsonify({"error": "Product not found"}), 404
+
+            current_quantity = current_quantity[0]
+
+            # Step 2: Check if enough quantity is available
+            if current_quantity < quantity_sold:
+                cur.close()
+                return jsonify({"error": "Not enough stock available"}), 400
+
+            # Step 3: Insert the sale into the sales table
+            cur.execute("""INSERT INTO sales (customerid, employeeid, productid, sales_date) 
+                           VALUES (%s, %s, %s, %s);""", 
+                           (customer_id, employee_id, product_id, sales_date))
+            
+            # Step 4: Decrease the product quantity in the product table
+            new_quantity = current_quantity - quantity_sold
+            cur.execute("UPDATE product SET quantity = %s WHERE productid = %s;", (new_quantity, product_id))
+
+            conn.commit()
+            cur.close()
+            return jsonify({"message": "Sale recorded successfully, product quantity updated"}), 201
+        except Exception as e:
+            conn.rollback()
+            print("Error inserting sale and updating product quantity:", e)
+            return jsonify({"error": str(e)}), 500
 
 
 # Run the Flask app
