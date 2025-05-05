@@ -1,15 +1,20 @@
 from flask import Flask, request, jsonify
 import psycopg2
+import os
+from dotenv import load_dotenv
+
+# Load environment variables from .env
+load_dotenv()
 
 app = Flask(__name__)
 
-# Establish the database connection
+# Establish the database connection using environment variables
 conn = psycopg2.connect(
-    dbname="semifinal",
-    user="semifinal_user",
-    password="ykBY3gMnOMTVkE67i3c2Mqpb9hE6WFUQ",
-    host="dpg-d0amb0pr0fns73cma300-a.oregon-postgres.render.com",
-    port="5432",
+    dbname=os.getenv("DB_NAME"),
+    user=os.getenv("DB_USER"),
+    password=os.getenv("DB_PASSWORD"),
+    host=os.getenv("DB_HOST"),
+    port=os.getenv("DB_PORT"),
     sslmode="require"
 )
 
@@ -91,8 +96,7 @@ def financial_records():
 
         try:
             cur = conn.cursor()
-            cur.execute("""
-                UPDATE financial_records SET
+            cur.execute("""UPDATE financial_records SET
                     revenue = %s, cost_of_goods_sold = %s, gross_profit = %s, total_expenses = %s, 
                     earnings_before_tax = %s, taxes = %s, net_profit = %s,
                     cash = %s, debt = %s, equity_capital = %s, retained_earnings = %s,
