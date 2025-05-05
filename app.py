@@ -2,11 +2,15 @@ from flask import Flask, request, jsonify
 import psycopg2
 import os
 from dotenv import load_dotenv
+from flask_cors import CORS  # Import CORS
 
 # Load environment variables from .env
 load_dotenv()
 
 app = Flask(__name__)
+
+# Enable CORS for all routes
+CORS(app)
 
 # Establish the database connection using environment variables
 conn = psycopg2.connect(
@@ -158,46 +162,6 @@ def manage_products():
         except Exception as e:
             conn.rollback()
             print("Error in /products (POST):", e)
-            return jsonify({"error": str(e)}), 500
-
-
-# **3. Retrieve and Update Inventory Data**
-@app.route('/inventory', methods=['GET', 'POST'])
-def manage_inventory():
-    if request.method == 'GET':
-        try:
-            cur = conn.cursor()
-            cur.execute("SELECT * FROM inventory;")
-            rows = cur.fetchall()
-            cur.close()
-
-            inventory_list = []
-            for row in rows:
-                inventory_list.append({
-                    "inventoryid": row[0],
-                    "brand": row[1],
-                    "quantity": row[2]
-                })
-            return jsonify(inventory_list)
-        except Exception as e:
-            print("Error in /inventory (GET):", e)
-            return jsonify({"error": str(e)}), 500
-
-    elif request.method == 'POST':
-        # Add a new inventory item
-        data = request.get_json()
-        brand = data.get('brand')
-        quantity = data.get('quantity')
-
-        try:
-            cur = conn.cursor()
-            cur.execute("INSERT INTO inventory (brand, quantity) VALUES (%s, %s);", (brand, quantity))
-            conn.commit()
-            cur.close()
-            return jsonify({"message": "Inventory item added successfully"}), 201
-        except Exception as e:
-            conn.rollback()
-            print("Error in /inventory (POST):", e)
             return jsonify({"error": str(e)}), 500
 
 
