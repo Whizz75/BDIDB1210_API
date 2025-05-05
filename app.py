@@ -137,8 +137,9 @@ def manage_products():
                 products.append({
                     "productid": row[0],
                     "productname": row[1],
-                    "price": row[2],
-                    "quantity": row[3]
+                    "brandname": row[2],
+                    "sellingprice": row[3],
+                    "quantity": row[4]
                 })
             return jsonify(products)
         except Exception as e:
@@ -149,13 +150,14 @@ def manage_products():
         # Add a new product
         data = request.get_json()
         product_name = data.get('productname')
-        price = data.get('price')
+        brand_name = data.get('brandname')
+        price = data.get('sellingprice')
         quantity = data.get('quantity')
 
         try:
             cur = conn.cursor()
-            cur.execute("INSERT INTO product (productname, price, quantity) VALUES (%s, %s, %s);",
-                        (product_name, price, quantity))
+            cur.execute("INSERT INTO product (productname, brand_name, price, quantity) VALUES (%s, %s, %s, %s);",
+                        (product_name, brand_name, price, quantity))
             conn.commit()
             cur.close()
             return jsonify({"message": "Product added successfully"}), 201
